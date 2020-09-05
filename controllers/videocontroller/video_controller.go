@@ -13,7 +13,7 @@ import (
 )
 
 const videoDir = "media/video"
-const videoArchive = "videoArchive"
+const tempVideoStore = "tempVideoStore"
 
 // client for testing video stream
 // https://flowplayer.com/developers/tools/stream-tester
@@ -24,8 +24,9 @@ const videoArchive = "videoArchive"
 // HandleVideo handles http requests and returns http handler for /video
 func HandleVideo(res http.ResponseWriter, req *http.Request) http.Handler {
 	var head string
-	head, req.URL.Path = util.ShiftPath(req.URL.Path)
 	var handler http.Handler
+
+	head, req.URL.Path = util.ShiftPath(req.URL.Path)
 
 	switch head {
 	// sample url for testing
@@ -47,60 +48,62 @@ type uploadHandler struct{}
 
 // ServeHTTP serves HTTP requests for /playback/upload
 func (h *uploadHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
-	// get file from request
 	req.ParseMultipartForm(20)
 	file, fileHeader, err := req.FormFile("fileToUpload")
 	if err != nil {
-		util.CreateHTTPResponse(res, "Error retrieving file.\n", http.StatusBadRequest, err)
+		util.CreateHTTPResponse(res, "Error retrieving file from request.\n", http.StatusBadRequest, err)
 	}
 	defer file.Close()
 
 	contentType := fileHeader.Header.Get("Content-Type")
 	if strings.Contains(contentType, "video") {
-		filePath, err := uploadVideo(file, fileHeader)
+		err := uploadVideo(file, fileHeader)
 		if err != nil {
 			util.CreateHTTPResponse(res, "Failed to upload video file.\n", http.StatusInternalServerError, err)
+		} else {
+			util.CreateHTTPResponse(res, "Upload succeeded.\n", http.StatusOK, nil)
 		}
-
-		err = createVideoChunks(filePath)
-		if err != nil {
-			util.CreateHTTPResponse(res, "Failed to chunk video file.\n", http.StatusInternalServerError, err)
-		}
-
-		util.CreateHTTPResponse(res, "Upload succeeded.\n", http.StatusOK, nil)
 	} else {
 		util.CreateHTTPResponse(res, "Incorrect media type. Please make sure you are uploading a video file.\n", http.StatusBadRequest, nil)
 	}
 }
 
-func uploadVideo(file multipart.File, fileHeader *multipart.FileHeader) (string, error) {
-	tempFile, err := ioutil.TempFile(videoArchive, fmt.Sprintf("upload-*-%+v", fileHeader.Filename))
+func uploadVideo(file multipart.File, fileHeader *multipart.FileHeader) error {
+	tempFile, err := ioutil.TempFile(tempVideoStore, fmt.Sprintf("upload-*-%+v", fileHeader.Filename))
 	if err != nil {
-		return "", err
+		return err
 	}
 	defer tempFile.Close()
 
 	fileBytes, err := ioutil.ReadAll(file)
 	if err != nil {
-		return "", err
+		return err
 	}
 	tempFile.Write(fileBytes)
 
-	return tempFile.Name(), nil
+	err = createVideoChunks(tempFile.Name())
+	if err != nil {
+		return err
+	}
+
+	err = os.Remove(tempFile.Name())
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func createVideoChunks(fullPathAndExt string) error {
-	fileNameAndExt := strings.TrimPrefix(fullPathAndExt, videoArchive+"/")
+	fileNameAndExt := strings.TrimPrefix(fullPathAndExt, tempVideoStore+"/")
 	extension := filepath.Ext(fullPathAndExt)
 	fileName := fileNameAndExt[0 : len(fileNameAndExt)-len(extension)]
 
-	// create video chunk file directory
 	err := os.Mkdir(videoDir+"/"+fileName, 0755)
 	if err != nil {
 		return err
 	}
 
-	// chunk video file
 	ffmpeg := "ffmpeg"
 	chunkSize := "10"
 	args := []string{
