@@ -17,9 +17,8 @@ const tempVideoStore = "tempVideoStore"
 
 // client for testing video stream
 // https://flowplayer.com/developers/tools/stream-tester
-
-// ffmpeg command
-// ffmpeg -i bunnyVideo.mp4 -codec: copy -start_number 0 -hls_time 10 -hls_list_size 0 -f hls bunnyVideo.m3u8
+// sample url for testing
+// http://localhost:8080/video/playback/upload-630824529-bunnyVideo/upload-630824529-bunnyVideo.m3u8
 
 // HandleVideo handles http requests and returns http handler for /video
 func HandleVideo(res http.ResponseWriter, req *http.Request) http.Handler {
@@ -29,8 +28,6 @@ func HandleVideo(res http.ResponseWriter, req *http.Request) http.Handler {
 	head, req.URL.Path = util.ShiftPath(req.URL.Path)
 
 	switch head {
-	// sample url for testing
-	// http://localhost:8080/video/playback/upload-630824529-bunnyVideo/upload-630824529-bunnyVideo.m3u8
 	case "playback":
 		handler = handlePlayback(res, req)
 	case "upload":
@@ -104,6 +101,9 @@ func createVideoChunks(fullPathAndExt string) error {
 		return err
 	}
 
+	// ffmpeg command
+	// ffmpeg -i bunnyVideo.mp4 -codec: copy -start_number 0 -hls_time 10 -hls_list_size 0 -f hls bunnyVideo.m3u8
+
 	ffmpeg := "ffmpeg"
 	chunkSize := "10"
 	args := []string{
@@ -122,8 +122,8 @@ func createVideoChunks(fullPathAndExt string) error {
 		videoDir + "/" + fileName + "/" + fileName + ".m3u8",
 	}
 	cmd := exec.Command(ffmpeg, args...)
-	cmd.Stderr = os.Stderr
-	cmd.Stdout = os.Stdout
+	// cmd.Stderr = os.Stderr
+	// cmd.Stdout = os.Stdout
 
 	err = cmd.Run()
 	if err != nil {
