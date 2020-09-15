@@ -1,6 +1,7 @@
 package videocontroller
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"mime/multipart"
@@ -29,16 +30,12 @@ func HandleVideo(res http.ResponseWriter, req *http.Request) http.Handler {
 
 	switch head {
 	case "playback":
-		handler = handlePlayback(res, req)
+		handler = http.FileServer(http.Dir(videoDir))
 	case "upload":
 		handler = &uploadHandler{}
 	}
 
 	return handler
-}
-
-func handlePlayback(res http.ResponseWriter, req *http.Request) http.Handler {
-	return http.FileServer(http.Dir(videoDir))
 }
 
 type uploadHandler struct{}
@@ -61,7 +58,8 @@ func (h *uploadHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 			util.CreateHTTPResponse(res, "Upload succeeded.\n", http.StatusOK, nil)
 		}
 	} else {
-		util.CreateHTTPResponse(res, "Incorrect media type. Please make sure you are uploading a video file.\n", http.StatusBadRequest, nil)
+		err = errors.New("Invalid content-type")
+		util.CreateHTTPResponse(res, "Incorrect media type. Please make sure you are uploading a video file.\n", http.StatusBadRequest, err)
 	}
 }
 
@@ -101,9 +99,7 @@ func createVideoChunks(fullPathAndExt string) error {
 		return err
 	}
 
-	// ffmpeg command
 	// ffmpeg -i bunnyVideo.mp4 -codec: copy -start_number 0 -hls_time 10 -hls_list_size 0 -f hls bunnyVideo.m3u8
-
 	ffmpeg := "ffmpeg"
 	chunkSize := "10"
 	args := []string{
@@ -122,8 +118,6 @@ func createVideoChunks(fullPathAndExt string) error {
 		videoDir + "/" + fileName + "/" + fileName + ".m3u8",
 	}
 	cmd := exec.Command(ffmpeg, args...)
-	// cmd.Stderr = os.Stderr
-	// cmd.Stdout = os.Stdout
 
 	err = cmd.Run()
 	if err != nil {
