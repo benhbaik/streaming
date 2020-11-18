@@ -3,7 +3,7 @@ package videocontroller
 import (
 	"errors"
 	"net/http"
-	videometamodel "streaming/models"
+	"streaming/services/videoservice"
 	"streaming/util"
 	"strings"
 )
@@ -12,8 +12,9 @@ const videoDir = "media/video"
 
 // Controller Controls paths for /video path.
 type Controller struct {
-	Head    string
-	Handler http.Handler
+	Head         string
+	Handler      http.Handler
+	VideoService *videoservice.VideoService
 }
 
 // client for testing video stream
@@ -25,6 +26,7 @@ type Controller struct {
 func New(res http.ResponseWriter, req *http.Request) *Controller {
 	vc := new(Controller)
 	vc.Head, req.URL.Path = util.ShiftPath(req.URL.Path)
+	vc.VideoService = videoservice.New()
 	switch vc.Head {
 	case "playback":
 		vc.Handler = http.FileServer(http.Dir(videoDir))
@@ -48,8 +50,8 @@ func (h *uploadHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 
 	contentType := fileHeader.Header.Get("Content-Type")
 	if strings.Contains(contentType, "video") {
-
-		err := videometamodel.Insert(file, fileHeader)
+		vs := videoservice.New()
+		vs.Add(file, fileHeader)
 		if err != nil {
 			util.CreateHTTPResponse(res, "Failed to upload video file.\n", http.StatusInternalServerError, err)
 		} else {
