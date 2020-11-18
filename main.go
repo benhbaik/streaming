@@ -7,6 +7,8 @@ import (
 	"streaming/controllers/audiocontroller"
 	"streaming/controllers/videocontroller"
 	"streaming/util"
+
+	_ "github.com/go-sql-driver/mysql"
 )
 
 const port = ":8080"
